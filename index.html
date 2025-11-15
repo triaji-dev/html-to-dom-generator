@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neo-Teal/Noir DOM Analyzer (v1.8)</title>
+    <!-- Link Syne Mono font from Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Syne+Mono&display=swap" rel="stylesheet">
+    <style>
+        /*
+        * ----------------------------------------
+        * THEME DEFINITIONS
+        * ----------------------------------------
+        */
+        :root {
+            /* NEO-TEAL COLOR PALETTE MAPPING (DEFAULT - Teal Theme) */
+            --bg: #191C24;     /* Very Dark Blue/Black */
+            --ui: #51B8BB;     /* Bright Teal/Cyan (Primary Text) */
+            --border: #2D697F; /* Darker Teal/Blue (Borders/Accents) */
+            --shadow: #0E2A3A; /* Very Dark Blue (Box Shadow effect) */
+            
+            /* SYNTAX COLORS */
+            --tag: #F0A224;       /* Gold/Mustard (Tags) */
+            --attribute-key: #D13955; /* Deep Rose (Attribute keys) */
+            --attribute-value: #51B8BB; /* Bright Teal (Attribute values) */
+            --text-content: #7A7F92; /* Mid Grey (Mid-tone text) */
+            --comment: #2D697F;    /* Darker Teal (Comments) */
+
+            /* Font Update */
+            --font-family-retro: 'Syne Mono', monospace;
+            --font-size-base: 14px; 
+        }
+
+        /* BONE NOIR THEME OVERRIDE (Light Mode/Grayscale) */
+        .bone-noir-theme {
+            --bg: #FFFFFF;     /* White */
+            --ui: #30323C;     /* Dark Grey/Black (Primary Text) */
+            --border: #7A7F92; /* Mid Grey (Borders/Accents) */
+            --shadow: #30323C; /* Dark Grey/Black (Box Shadow effect) */
+
+            /* SYNTAX COLORS - Simplified B&W contrast */
+            --tag: #30323C; 
+            --attribute-key: #7A7F92; 
+            --attribute-value: #30323C;
+            --text-content: #7A7F92; 
+            --comment: #B6B8BF;    /* Light Grey */
+        }
+
+        /*
+        * ----------------------------------------
+        * BASE STYLING (Uses dynamic variables)
+        * ----------------------------------------
+        */
+        body, html {
+            height: 100%;
+            margin: 0;
+            font-family: var(--font-family-retro);
+            background-color: var(--bg);
+            color: var(--ui);
+            font-size: var(--font-size-base);
+            overflow: hidden; 
+        }
+
+        /* Simple chunky button/box style */
+        .retro-button, .retro-box, textarea, input[type="file"] {
+            background-color: var(--bg);
+            color: var(--ui);
+            border: 2px solid var(--border);
+            padding: 8px 12px;
+            box-shadow: 4px 4px 0px var(--shadow);
+            cursor: pointer;
+            transition: all 0.1s ease;
+            font-family: var(--font-family-retro); 
+            font-size: 1em;
+            box-sizing: border-box; 
+        }
+
+        .retro-button:hover {
+            background-color: var(--shadow); 
+            color: var(--bg); 
+            box-shadow: 2px 2px 0px var(--shadow);
+            transform: translate(2px, 2px);
+        }
+
+        .retro-button:active {
+            box-shadow: 0px 0px 0px var(--shadow);
+            transform: translate(4px, 4px);
+        }
+
+        textarea {
+            resize: vertical;
+            width: 100%;
+            min-height: 150px;
+            font-size: 1em;
+        }
+        
+        /* Specific styling for file input (mimicking a button/box) */
+        input[type="file"] {
+             width: 100%;
+             color: transparent; 
+             position: relative;
+             height: 40px; 
+             padding: 0;
+             cursor: pointer;
+        }
+        
+        /* Create a pseudo-element to display "Choose File" text */
+        input[type="file"]::before {
+             content: 'SELECT FILE';
+             color: var(--ui);
+             background-color: var(--bg);
+             border: 2px solid var(--border);
+             padding: 8px 12px;
+             box-shadow: 4px 4px 0px var(--shadow);
+             position: absolute;
+             top: -2px;
+             left: -2px;
+             width: 100%;
+             height: 100%;
+             line-height: 24px;
+             text-align: left;
+             pointer-events: none;
+             z-index: 1;
+             box-sizing: border-box;
+        }
+
+        input[type="file"]::after {
+             content: 'BROWSE';
+             color: var(--bg);
+             background-color: var(--ui);
+             border-left: 2px solid var(--border);
+             padding: 8px 12px;
+             position: absolute;
+             top: -2px;
+             right: -2px;
+             height: 100%;
+             line-height: 24px;
+             z-index: 2;
+             box-sizing: border-box;
+        }
+        
+        /* Drag and Drop Visual Feedback */
+        .drag-active {
+            border: 3px dashed var(--tag) !important;
+            /* Use a fixed lighter color for contrast regardless of theme */
+            background-color: #34485C !important; 
+            opacity: 0.9;
+        }
+
+
+        /*
+        * ----------------------------------------
+        * DASHBOARD LAYOUT
+        * ----------------------------------------
+        */
+        .dashboard {
+            display: flex;
+            height: 100vh;
+            padding-top: 50px; 
+            box-sizing: border-box;
+        }
+
+        /* Header (Fixed) */
+        header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 50px;
+            background-color: var(--shadow); 
+            color: var(--bg); 
+            border-bottom: 2px solid var(--border);
+            padding: 0 16px;
+            display: flex;
+            align-items: center;
+            z-index: 10;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 1.5em;
+            text-shadow: 2px 2px var(--border); 
+        }
+
+        /* Left Sidebar (Input Panel) */
+        #input-panel {
+            width: 350px;
+            flex-shrink: 0;
+            border-right: 2px solid var(--border);
+            padding: 16px;
+            overflow-y: auto;
+            max-height: 100%;
+            box-sizing: border-box;
+        }
+
+        /* Main Content (Tree View) */
+        #tree-view {
+            flex-grow: 1;
+            padding: 16px;
+            overflow-y: auto;
+            max-height: 100%;
+            border: 2px solid transparent; 
+        }
+
+        /*
+        * ----------------------------------------
+        * TREE STRUCTURE & SYNTAX STYLING
+        * ----------------------------------------
+        */
+        .tree-container {
+            min-height: 100%;
+        }
+
+        /* <details> is the collapsible element */
+        .tree-node details {
+            margin-left: 15px;
+            border-left: 1px dotted var(--border);
+            padding-left: 5px;
+        }
+
+        /* <summary> is the clickable tag */
+        .tree-node summary {
+            list-style: none; 
+            cursor: pointer;
+            padding: 2px 0;
+            white-space: nowrap;
+        }
+        
+        /* Custom arrow style using ::before */
+        .tree-node summary::before {
+            content: '[+]'; 
+            margin-right: 5px;
+            color: var(--border); 
+        }
+
+        .tree-node details[open] > summary::before {
+            content: '[-]'; 
+        }
+        
+        /* Highlight tag name */
+        .tag-name {
+            color: var(--tag); 
+            font-weight: bold;
+        }
+
+        /* Style for attributes list container */
+        .attributes {
+            font-size: 0.9em;
+            color: var(--attribute-key); 
+            display: inline;
+        }
+        
+        .attribute-key {
+            font-style: italic;
+        }
+        
+        .attribute-value {
+            color: var(--attribute-value); 
+            font-style: normal;
+        }
+
+        /* Text nodes are simple lines */
+        .text-node {
+            margin-left: 20px;
+            color: var(--text-content); 
+            font-style: italic;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            display: block;
+            max-width: 100%;
+        }
+
+        /* Comment nodes */
+        .comment-node {
+            margin-left: 20px;
+            color: var(--comment); 
+            font-style: italic;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            display: block;
+            max-width: 100%;
+        }
+
+        /*
+        * ----------------------------------------
+        * TOGGLE SWITCH STYLING
+        * ----------------------------------------
+        */
+        .setting-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            padding: 4px 0;
+            border-bottom: 1px dotted var(--border);
+        }
+
+        .setting-item label {
+            cursor: pointer;
+        }
+
+        .setting-item input[type="checkbox"] {
+            /* Hide the actual checkbox appearance */
+            appearance: none;
+            -webkit-appearance: none;
+            cursor: pointer;
+            width: 40px;
+            height: 20px;
+            border: 2px solid var(--border);
+            box-shadow: 2px 2px 0px var(--shadow);
+            position: relative;
+            background-color: var(--bg);
+            transition: all 0.2s;
+        }
+
+        .setting-item input[type="checkbox"]::before {
+            content: 'OFF';
+            position: absolute;
+            top: 50%;
+            left: 5px;
+            transform: translateY(-50%);
+            font-size: 10px;
+            color: var(--border); /* OFF color (Darker Teal/Mid Grey) */
+            transition: all 0.2s;
+        }
+
+        .setting-item input[type="checkbox"]:checked {
+            background-color: var(--shadow);
+        }
+
+        .setting-item input[type="checkbox"]:checked::before {
+            content: 'ON';
+            left: auto;
+            right: 5px;
+            color: var(--bg); /* ON color (Very Dark Blue/White) */
+        }
+
+        /* New button group styling */
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        /*
+        * ----------------------------------------
+        * RESPONSIVENESS (MOBILE FIRST)
+        * ----------------------------------------
+        */
+
+        @media (max-width: 768px) {
+            .dashboard {
+                flex-direction: column;
+                height: auto;
+                overflow-y: auto;
+            }
+
+            #input-panel {
+                width: 100%;
+                border-right: none;
+                border-bottom: 2px solid var(--border);
+                max-height: 50vh; 
+            }
+
+            #tree-view {
+                width: 100%;
+                max-height: 50vh; 
+            }
+            
+            .button-group {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>[SYSTEM] NEO-TEAL DOM-GHOST v1.8</h1>
+    </header>
+
+    <div class="dashboard">
+        <!-- LEFT SIDEBAR: INPUT & CONTROLS -->
+        <section id="input-panel">
+            <h2 style="font-size: 1.2em; border-bottom: 1px dotted var(--border); padding-bottom: 5px; margin-top: 0;">INPUT COMMANDS</h2>
+            
+            <p>PASTE HTML:</p>
+            <textarea id="html-input" placeholder="<!-- Paste your HTML code here (e.g., <div>Hello</div>) -->" class="retro-box"></textarea>
+            <button class="retro-button" onclick="processInput('paste')">RUN > PARSE HTML</button>
+
+            <p style="margin-top: 20px;">UPLOAD HTML FILE:</p>
+            <!-- File input now uses specific CSS styling for a retro look -->
+            <input type="file" id="file-input" accept=".html,.htm,.txt" onchange="processInput('file')">
+            
+            <p style="margin-top: 20px; font-size: 0.9em; color: var(--ui);">STATUS: <span id="status-message">Waiting for input... (Drag & Drop enabled)</span></p>
+
+            <!-- DOM FILTER [CONFIG] SECTION -->
+            <div id="settings-section">
+                <h2 style="font-size: 1.2em; border-bottom: 1px dotted var(--border); padding-bottom: 5px; margin-top: 20px;">DOM FILTER [CONFIG]</h2>
+                
+                <!-- NEW TOGGLE: COLOR MODE -->
+                <div class="setting-item">
+                    <label for="toggle-theme">Color Mode (Neo-Teal / Noir)</label>
+                    <input type="checkbox" id="toggle-theme">
+                </div>
+                
+                <!-- NEW TOGGLE: SCOPE -->
+                <div class="setting-item">
+                    <label for="toggle-scope">Scope (HTML / BODY)</label>
+                    <input type="checkbox" id="toggle-scope" checked>
+                </div>
+
+                <div class="setting-item">
+                    <label for="toggle-attribute">Display Element Attributes</label>
+                    <input type="checkbox" id="toggle-attribute" checked>
+                </div>
+                
+                <div class="setting-item">
+                    <label for="toggle-text">Display #Text Nodes</label>
+                    <input type="checkbox" id="toggle-text" checked>
+                </div>
+                
+                <div class="setting-item">
+                    <label for="toggle-comment">Display Comments</label>
+                    <input type="checkbox" id="toggle-comment" checked>
+                </div>
+
+                <!-- UTILITY BUTTONS (EXPAND/COLLAPSE/EXPORT) -->
+                <div class="button-group">
+                    <button class="retro-button" onclick="toggleAllDetails(true)">EXPAND ALL</button>
+                    <button class="retro-button" onclick="toggleAllDetails(false)">COLLAPSE ALL</button>
+                </div>
+                <div class="button-group">
+                    <button class="retro-button" onclick="exportToJson()">EXPORT TO JSON</button>
+                </div>
+                <!-- END UTILITY BUTTONS -->
+            </div>
+            <!-- END DOM FILTER [CONFIG] SECTION -->
+
+        </section>
+
+        <!-- MAIN CONTENT: DOM TREE OUTPUT -->
+        <section id="tree-view">
+            <h2 style="font-size: 1.2em; border-bottom: 1px dotted var(--border); padding-bottom: 5px; margin-top: 0;">OUTPUT > DOM TREE</h2>
+            <div id="tree-container" class="tree-container">
+                <!-- Tree structure will be rendered here -->
+                <p style="color: var(--comment);">[LOG] Ready to visualize DOM structure...</p>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        // Global references
+        const treeContainer = document.getElementById('tree-container');
+        const htmlInput = document.getElementById('html-input');
+        const fileInput = document.getElementById('file-input');
+        const statusMessage = document.getElementById('status-message');
+        const dashboard = document.querySelector('.dashboard');
+        const dropZone = document.getElementById('tree-view');
+
+        // Settings Toggles
+        const toggleTheme = document.getElementById('toggle-theme'); 
+        const toggleAttribute = document.getElementById('toggle-attribute');
+        const toggleText = document.getElementById('toggle-text');
+        const toggleComment = document.getElementById('toggle-comment');
+        const toggleScope = document.getElementById('toggle-scope'); 
+        
+        let lastProcessedHtml = ''; 
+
+        const parser = new DOMParser();
+        const MAX_TEXT_LENGTH = 50;
+
+        /**
+         * Updates the status message in the input panel.
+         * @param {string} msg 
+         * @param {boolean} isError 
+         */
+        function updateStatus(msg, isError = false) {
+            statusMessage.textContent = msg;
+            // Use Deep Rose/Mid Grey for errors, Primary Brown/Dark Grey for standard status
+            statusMessage.style.color = isError ? 'var(--border)' : 'var(--ui)'; 
+        }
+        
+        /**
+         * Toggles the color theme between Neo-Teal (default) and Bone Noir.
+         */
+        function toggleColorMode() {
+            document.body.classList.toggle('bone-noir-theme', toggleTheme.checked);
+            // Update status bar text to reflect the current theme mode
+            const mode = toggleTheme.checked ? 'Bone Noir' : 'Neo-Teal';
+            updateStatus(`INFO: Switched to ${mode} theme.`, false);
+        }
+
+
+        /**
+         * Gets all attributes from an element and formats them as a retro string.
+         * @param {Element} element 
+         * @param {boolean} displayAttributes 
+         * @returns {string} Formatted attribute string.
+         */
+        function getAttributesString(element, displayAttributes) {
+            if (!displayAttributes || element.attributes.length === 0) return '';
+            
+            let attrs = [];
+            for (let i = 0; i < element.attributes.length; i++) {
+                const attr = element.attributes[i];
+                // Use new attribute-value class for enhanced syntax coloring
+                attrs.push(`<span class="attribute-key">${attr.name}</span>="<span class="attribute-value">${attr.value}</span>"`);
+            }
+            
+            return `<span class="attributes">[ ${attrs.join(' ')} ]</span>`;
+        }
+
+        /**
+         * Recursively walks the DOM tree and builds the nested HTML structure using <details>/<summary>.
+         * @param {Node} node 
+         * @param {Object} settings - Visibility settings { displayAttributes, displayTextNodes, displayComments }
+         * @returns {string} HTML string of the tree branch.
+         */
+        function buildTree(node, settings) {
+            let html = '';
+
+            // 1. Handle Element Nodes (e.g., <div>, <p>, <body>)
+            if (node.nodeType === 1 /* Node.ELEMENT_NODE */) {
+                const tagName = node.tagName.toLowerCase();
+                const attributes = getAttributesString(node, settings.displayAttributes);
+                
+                // Start of the collapsible node
+                html += '<div class="tree-node">';
+                html += '<details open>'; // Open by default for better initial view
+                html += `<summary>&lt;<span class="tag-name">${tagName}</span>${attributes}&gt;</summary>`;
+                
+                // Process children
+                if (node.childNodes.length > 0) {
+                    node.childNodes.forEach(child => {
+                        // Pass settings recursively
+                        html += buildTree(child, settings);
+                    });
+                }
+                
+                // End of the collapsible node
+                html += '</details>';
+                html += '</div>';
+
+            } 
+            // 2. Handle Text Nodes (excluding empty whitespace)
+            else if (node.nodeType === 3 /* Node.TEXT_NODE */) {
+                const textContent = node.nodeValue.trim();
+                
+                // Skip if setting is off OR content is just whitespace
+                if (!settings.displayTextNodes || textContent.length === 0) return ''; 
+                
+                // Truncate long text nodes for display clarity
+                const displayContent = textContent.length > MAX_TEXT_LENGTH
+                    ? textContent.substring(0, MAX_TEXT_LENGTH) + '...'
+                    : textContent;
+
+                html += `<span class="text-node">#text: "${displayContent}"</span>`;
+            }
+            // 3. Handle Comment Nodes
+            else if (node.nodeType === 8 /* Node.COMMENT_NODE */) {
+                if (!settings.displayComments) return ''; // Skip if setting is off
+
+                const commentContent = node.nodeValue.trim();
+                html += `<span class="comment-node">&lt;!-- Comment: ${commentContent} --&gt;</span>`;
+            }
+            
+            return html;
+        }
+
+        /**
+         * Main function to take raw HTML input and render the tree.
+         * @param {string} rawHtml 
+         */
+        function renderTree(rawHtml) {
+            try {
+                if (!rawHtml || rawHtml.trim() === '') {
+                    updateStatus('ERROR: Input field is empty.', true);
+                    treeContainer.innerHTML = `<p style="color: var(--comment);">[LOG] Ready to visualize DOM structure...</p>`;
+                    return;
+                }
+
+                updateStatus('Parsing and generating DOM tree...');
+
+                // Store the raw HTML for re-rendering on setting changes
+                lastProcessedHtml = rawHtml; 
+
+                // Get current settings from toggles
+                const settings = {
+                    displayAttributes: toggleAttribute.checked,
+                    displayTextNodes: toggleText.checked,
+                    displayComments: toggleComment.checked,
+                };
+
+                // Use DOMParser to safely parse the input string
+                const doc = parser.parseFromString(rawHtml, 'text/html');
+
+                // Determine the starting node based on the toggleScope state
+                // true (checked) means HTML element (full document)
+                // false (unchecked) means BODY element (page content only)
+                const startNode = toggleScope.checked ? doc.documentElement : doc.body;
+
+                if (!startNode) {
+                    updateStatus('ERROR: Could not find HTML or BODY element to parse.', true);
+                    treeContainer.innerHTML = `<p style="color: var(--border);">[ERROR] Document structure incomplete.</p>`;
+                    return;
+                }
+
+                // Start building the tree from the selected element
+                const treeHtml = buildTree(startNode, settings);
+
+                treeContainer.innerHTML = treeHtml;
+                updateStatus('DOM visualization complete. Data loaded.', false);
+
+            } catch (error) {
+                treeContainer.innerHTML = `<p style="color: var(--border);">[ERROR] Failed to parse HTML input.</p><pre style="color: var(--border); font-size: 0.8em;">${error.message}</pre>`;
+                updateStatus('FATAL ERROR: Check console for details.', true);
+                console.error("DOM Parsing Error:", error);
+            }
+        }
+
+        /**
+         * Sets up event listeners for the toggle buttons (now including theme toggle).
+         */
+        function setupSettingsListeners() {
+            [toggleAttribute, toggleText, toggleComment, toggleScope, toggleTheme].forEach(toggle => {
+                toggle.addEventListener('change', () => {
+                    // Special handling for the theme toggle, which calls its own function
+                    if (toggle.id === 'toggle-theme') {
+                        toggleColorMode();
+                        return;
+                    }
+
+                    // Normal handling for other toggles (requires re-render)
+                    if (lastProcessedHtml) {
+                        // Re-render the tree with the new settings using the last successful input
+                        renderTree(lastProcessedHtml);
+                    } else {
+                        updateStatus('INFO: Please enter or upload HTML first.', false);
+                    }
+                });
+            });
+        }
+        
+        /**
+         * Expands or collapses all <details> elements in the tree view.
+         * @param {boolean} shouldOpen - true to expand, false to collapse.
+         */
+        function toggleAllDetails(shouldOpen) {
+            const detailsElements = treeContainer.querySelectorAll('details');
+            if (detailsElements.length === 0) {
+                 updateStatus('INFO: No DOM tree to expand/collapse.', false);
+                 return;
+            }
+            
+            detailsElements.forEach(detail => {
+                detail.open = shouldOpen;
+            });
+            
+            updateStatus(shouldOpen ? 'All nodes expanded.' : 'All nodes collapsed.', false);
+        }
+
+        // --- JSON Export Implementation ---
+
+        /**
+         * Recursively converts a DOM node into a structured JSON object.
+         * This function respects the current filtering settings.
+         * @param {Node} node The DOM node to process.
+         * @param {Object} settings Current filtering settings.
+         * @returns {Object|null} The JSON structure or null if filtered out.
+         */
+        function domToJson(node, settings) {
+            let obj = {};
+
+            // 1. Element Node
+            if (node.nodeType === 1 /* Node.ELEMENT_NODE */) {
+                const tagName = node.tagName.toLowerCase();
+                
+                obj.nodeType = 'ELEMENT';
+                obj.tagName = tagName;
+
+                // Add Attributes
+                if (settings.displayAttributes && node.attributes.length > 0) {
+                    obj.attributes = {};
+                    for (let i = 0; i < node.attributes.length; i++) {
+                        const attr = node.attributes[i];
+                        obj.attributes[attr.name] = attr.value;
+                    }
+                }
+
+                // Process Children
+                let children = [];
+                node.childNodes.forEach(child => {
+                    const childObj = domToJson(child, settings);
+                    if (childObj) {
+                        children.push(childObj);
+                    }
+                });
+
+                if (children.length > 0) {
+                    obj.children = children;
+                }
+                
+                return obj;
+
+            } 
+            // 2. Text Node
+            else if (node.nodeType === 3 /* Node.TEXT_NODE */) {
+                const textContent = node.nodeValue.trim();
+                
+                if (!settings.displayTextNodes || textContent.length === 0) return null; 
+                
+                obj.nodeType = 'TEXT';
+                obj.content = textContent;
+                return obj;
+            }
+            // 3. Comment Node
+            else if (node.nodeType === 8 /* Node.COMMENT_NODE */) {
+                if (!settings.displayComments) return null; 
+                
+                const commentContent = node.nodeValue.trim();
+                obj.nodeType = 'COMMENT';
+                obj.content = commentContent;
+                return obj;
+            }
+            
+            // 4. Other nodes (Document, Doctype, etc.) - skip
+            return null;
+        }
+
+        /**
+         * Generates the JSON representation of the current DOM and displays it in a text area.
+         */
+        function exportToJson() {
+            if (!lastProcessedHtml) {
+                updateStatus('ERROR: No HTML has been parsed yet to export.', true);
+                return;
+            }
+
+            updateStatus('Generating JSON structure...');
+            
+            // Get current settings (same as renderTree)
+            const settings = {
+                displayAttributes: toggleAttribute.checked,
+                displayTextNodes: toggleText.checked,
+                displayComments: toggleComment.checked,
+            };
+            
+            // Re-parse the last successful HTML
+            const doc = parser.parseFromString(lastProcessedHtml, 'text/html');
+            
+            // Determine the starting node based on the toggleScope state
+            const startNode = toggleScope.checked ? doc.documentElement : doc.body;
+
+            if (!startNode) {
+                updateStatus('ERROR: Starting element (HTML/BODY) not found.', true);
+                return;
+            }
+
+            // Convert DOM to JSON object
+            const jsonObject = domToJson(startNode, settings);
+            
+            // Format the JSON string nicely (indentation of 2 spaces)
+            const jsonString = JSON.stringify(jsonObject, null, 2); 
+
+            // Display the JSON in the main content area (tree-container)
+            treeContainer.innerHTML = `
+                <h2 style="font-size: 1.2em; border-bottom: 1px dotted var(--border); padding-bottom: 5px; margin-top: 0; color: var(--tag);">OUTPUT > JSON EXPORT</h2>
+                <p style="color: var(--comment); margin-top: -10px; font-size: 0.9em;">Filtered by current settings. Copy content below:</p>
+                <textarea id="json-output-area" class="retro-box" readonly style="width: 100%; height: 80vh; min-height: 200px; font-size: 0.9em; box-sizing: border-box; resize: none; overflow: auto; background-color: var(--bg); color: var(--ui);">${jsonString}</textarea>
+                <div class="button-group" style="margin-top: 10px;">
+                    <button class="retro-button" onclick="document.getElementById('json-output-area').select(); document.execCommand('copy'); updateStatus('JSON copied to clipboard.', false);">COPY TO CLIPBOARD</button>
+                    <!-- Close JSON view by re-rendering the original DOM tree -->
+                    <button class="retro-button" onclick="renderTree(lastProcessedHtml)">CLOSE JSON VIEW</button>
+                </div>
+            `;
+
+            updateStatus('JSON output generated successfully.', false);
+        }
+
+        // --- Drag and Drop Implementation ---
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        function setupDragAndDrop() {
+            // Prevent default behavior (which is usually opening the file)
+            ['dragenter', 'dragleave', 'dragover', 'drop'].forEach(eventName => {
+                dashboard.addEventListener(eventName, preventDefaults, false);
+            });
+            
+            // Highlight drop area when file is dragged over
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dashboard.addEventListener(eventName, () => {
+                    dropZone.classList.add('drag-active');
+                }, false);
+            });
+
+            // Unhighlight drop area when file leaves/drops
+            ['dragleave', 'drop'].forEach(eventName => {
+                dashboard.addEventListener(eventName, (e) => {
+                    // Only remove drag-active if the mouse is truly outside the drop zone
+                    if (eventName === 'dragleave' && e.target !== dropZone) return;
+                    dropZone.classList.remove('drag-active');
+                }, false);
+            });
+
+            // Handle dropped files
+            dashboard.addEventListener('drop', handleDrop, false);
+
+            function handleDrop(e) {
+                const dt = e.dataTransfer;
+                const files = dt.files;
+
+                if (files.length) {
+                    const file = files[0];
+                    
+                    if (file.type.match('text/html') || file.name.match(/\.(html|htm|txt)$/i)) {
+                        updateStatus(`Loading file via drag/drop: ${file.name}...`);
+                        const reader = new FileReader();
+                        
+                        reader.onload = (event) => {
+                            const htmlCode = event.target.result;
+                            htmlInput.value = htmlCode; // Update textarea for persistence
+                            fileInput.value = ''; // Clear file input
+                            renderTree(htmlCode);
+                        };
+
+                        reader.onerror = (event) => {
+                            updateStatus(`ERROR: Failed to read file via drag/drop.`, true);
+                            console.error("File reading error (Drag/Drop):", event.target.error);
+                        };
+
+                        reader.readAsText(file);
+                    } else {
+                        updateStatus('ERROR: Only HTML or text files are supported for drag/drop.', true);
+                    }
+                } else {
+                    updateStatus('ERROR: No files detected on drop.', true);
+                }
+            }
+        }
+        
+        // Expose functions to global scope
+        window.toggleAllDetails = toggleAllDetails;
+        window.exportToJson = exportToJson;
+        window.renderTree = renderTree; // Exposed for CLOSE JSON VIEW button
+
+        // Initialize listeners once the window loads
+        window.onload = function() {
+            setupSettingsListeners(); 
+            setupDragAndDrop(); 
+        };
+
+        /**
+         * Handles either paste input or file upload (used by buttons).
+         * @param {'paste' | 'file'} type 
+         */
+        function processInput(type) {
+            if (type === 'paste') {
+                const htmlCode = htmlInput.value;
+                renderTree(htmlCode);
+                fileInput.value = ''; // Clear file input
+            } else if (type === 'file') {
+                const file = fileInput.files[0];
+                if (file) {
+                    updateStatus(`Loading file: ${file.name}...`);
+                    const reader = new FileReader();
+                    
+                    reader.onload = (event) => {
+                        const htmlCode = event.target.result;
+                        htmlInput.value = htmlCode; // Also update textarea
+                        renderTree(htmlCode);
+                    };
+
+                    reader.onerror = (event) => {
+                        updateStatus(`ERROR: Failed to read file.`, true);
+                        console.error("File reading error:", event.target.error);
+                    };
+
+                    reader.readAsText(file);
+                } else {
+                    updateStatus('ERROR: No file selected.', true);
+                }
+            }
+        }
+        
+    </script>
+
+</body>
+</html>
