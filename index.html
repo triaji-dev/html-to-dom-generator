@@ -433,7 +433,8 @@
                     <button class="retro-button" onclick="toggleAllDetails(false)">COLLAPSE ALL</button>
                 </div>
                 <div class="button-group">
-                    <button class="retro-button" onclick="exportToJson()">EXPORT TO JSON</button>
+                    <!-- Updated button to call the new function name for clarity -->
+                    <button class="retro-button" onclick="downloadJson()">EXPORT & DOWNLOAD JSON</button>
                 </div>
                 <!-- END UTILITY BUTTONS -->
                 <div style="margin-top: 20px; font-size: 0.8em; color: var(--comment);">
@@ -740,15 +741,15 @@
         }
 
         /**
-         * Generates the JSON representation of the current DOM and displays it in a text area.
+         * New function to generate the JSON and trigger a local file download.
          */
-        function exportToJson() {
+        function downloadJson() {
             if (!lastProcessedHtml) {
                 updateStatus('ERROR: No HTML has been parsed yet to export.', true);
                 return;
             }
 
-            updateStatus('Generating JSON structure...');
+            updateStatus('Generating JSON structure for download...');
             
             // Get current settings (same as renderTree)
             const settings = {
@@ -774,20 +775,29 @@
             // Format the JSON string nicely (indentation of 2 spaces)
             const jsonString = JSON.stringify(jsonObject, null, 2); 
 
-            // Display the JSON in the main content area (tree-container)
-            treeContainer.innerHTML = `
-                <h2 style="font-size: 1.2em; border-bottom: 1px dotted var(--border); padding-bottom: 5px; margin-top: 0; color: var(--tag);">OUTPUT > JSON EXPORT</h2>
-                <p style="color: var(--comment); margin-top: -10px; font-size: 0.9em;">Filtered by current settings. Copy content below:</p>
-                <textarea id="json-output-area" class="retro-box" readonly style="width: 100%; height: 80vh; min-height: 200px; font-size: 0.9em; box-sizing: border-box; resize: none; overflow: auto; background-color: var(--bg); color: var(--ui);">${jsonString}</textarea>
-                <div class="button-group" style="margin-top: 10px;">
-                    <button class="retro-button" onclick="document.getElementById('json-output-area').select(); document.execCommand('copy'); updateStatus('JSON copied to clipboard.', false);">COPY TO CLIPBOARD</button>
-                    <!-- Close JSON view by re-rendering the original DOM tree -->
-                    <button class="retro-button" onclick="renderTree(lastProcessedHtml)">CLOSE JSON VIEW</button>
-                </div>
-            `;
+            // --- Download Logic ---
+            const filename = 'dom_analysis_' + new Date().toISOString().slice(0, 10) + '.json';
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            
+            // Append link to body, trigger click, and remove it
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            
+            // Clean up the URL object
+            URL.revokeObjectURL(url);
+            // --- End Download Logic ---
 
-            updateStatus('JSON output generated successfully.', false);
+            updateStatus(`JSON file '${filename}' downloaded successfully.`, false);
         }
+
+        // The old exportToJson function is now removed.
+        // It's replaced by downloadJson, and the button now calls downloadJson.
 
         // --- Drag and Drop Implementation ---
 
@@ -856,8 +866,9 @@
         
         // Expose functions to global scope
         window.toggleAllDetails = toggleAllDetails;
-        window.exportToJson = exportToJson;
-        window.renderTree = renderTree; // Exposed for CLOSE JSON VIEW button
+        // Expose the new download function
+        window.downloadJson = downloadJson; 
+        window.renderTree = renderTree; 
 
         // Initialize listeners once the window loads
         window.onload = function() {
