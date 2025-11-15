@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DOM Analyzer (v1.8)</title>
+    <title>DOM Analyzer (v2.3)</title>
     <!-- Link Syne Mono font from Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Syne+Mono&display=swap" rel="stylesheet">
     <style>
@@ -25,6 +25,16 @@
             --attribute-value: #51B8BB; /* Bright Teal (Attribute values) */
             --text-content: #7A7F92; /* Mid Grey (Mid-tone text) */
             --comment: #2D697F;    /* Darker Teal (Comments) */
+            
+            /* TREE VIEW COLORS */
+            /* Line changed to 1px dotted for schematic look */
+            --tree-line: #375363; 
+            
+            /* COMPACT NODE COLORS */
+            --node-element-color: #51B8BB; /* Teal for Elements */
+            --node-text-color: #F0A224;    /* Gold for Text */
+            --node-comment-color: #D13955; /* Rose for Comments */
+
 
             /* Font Update */
             --font-family-retro: 'Syne Mono', monospace;
@@ -44,6 +54,14 @@
             --attribute-value: #30323C;
             --text-content: #7A7F92; 
             --comment: #B6B8BF;    /* Light Grey */
+            
+            /* TREE VIEW COLORS */
+            --tree-line: #B6B8BF; 
+            
+            /* COMPACT NODE COLORS */
+            --node-element-color: #30323C;
+            --node-text-color: #7A7F92;
+            --node-comment-color: #B6B8BF;
         }
 
         /*
@@ -197,106 +215,332 @@
         #tree-view {
             flex-grow: 1;
             padding: 16px;
-            overflow-y: auto;
+            overflow-y: auto; /* Allow scrolling for the entire section */
             max-height: 100%;
             border: 2px solid transparent; 
+            display: flex;
+            flex-direction: column;
+        }
+        
+        #tree-container-wrapper {
+            flex-grow: 1;
+            overflow-y: auto; /* Only tree container should scroll vertically */
+            padding-bottom: 10px; /* Space above detail panel */
+        }
+        
+        /* Node Detail Panel */
+        #node-detail-panel {
+            flex-shrink: 0;
+            margin-top: 10px;
+            padding: 10px;
+            border: 2px solid var(--border);
+            box-shadow: 4px 4px 0px var(--shadow);
+            min-height: 50px;
+            max-height: 30vh;
+            overflow-y: auto;
+            background-color: var(--shadow);
+            font-size: 0.9em;
+            display: none; /* Hidden by default */
+        }
+        
+        #node-detail-panel h4 {
+            margin-top: 0;
+            border-bottom: 1px dotted var(--ui);
+            padding-bottom: 5px;
+            color: var(--tag);
+        }
+        
+        #node-detail-panel pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-size: 0.8em;
+            color: var(--text-content);
+        }
+        
+        .detail-attribute {
+            color: var(--attribute-key);
+        }
+        
+        .detail-value {
+            color: var(--attribute-value);
+        }
+
+
+        /* Toggle Button Group */
+        #view-toggle-group {
+            display: flex;
+            gap: 0; /* Remove gap for merged button look */
+            margin-bottom: 10px;
+            border: 2px solid var(--border);
+            box-shadow: 4px 4px 0px var(--shadow);
+            width: fit-content;
+        }
+        
+        #view-toggle-group button {
+            all: unset; /* Remove default button styling */
+            padding: 8px 12px;
+            cursor: pointer;
+            transition: background-color 0.1s ease;
+            font-size: 0.9em;
+            border-right: 1px solid var(--border);
+            color: var(--ui);
+            background-color: var(--bg);
+        }
+        
+        #view-toggle-group button:last-child {
+            border-right: none;
+        }
+
+        #view-toggle-group button.active {
+            background-color: var(--ui);
+            color: var(--bg);
+            font-weight: bold;
+        }
+        
+        #view-toggle-group button:not(.active):hover {
+            background-color: var(--shadow);
+            color: var(--bg);
         }
 
         /*
         * ----------------------------------------
-        * TREE STRUCTURE & SYNTAX STYLING
+        * 1. HIERARCHICAL VIEW (Vertical Collapsible) 
         * ----------------------------------------
         */
-        .tree-container {
+        .file-structure-view .tree-container {
             min-height: 100%;
         }
 
         /* <details> is the collapsible element */
-        .tree-node details {
+        .file-structure-view .tree-node details {
             margin-left: 15px;
             border-left: 1px dotted var(--border);
             padding-left: 5px;
         }
 
-        /* <summary> is the clickable tag */
-        .tree-node summary {
+        .file-structure-view .tree-node summary {
             list-style: none; 
             cursor: pointer;
             padding: 2px 0;
             white-space: nowrap;
         }
         
-        /* Custom arrow style using ::before */
-        .tree-node summary::before {
+        .file-structure-view .tree-node summary::before {
             content: '[+]'; 
             margin-right: 5px;
             color: var(--border); 
         }
 
-        .tree-node details[open] > summary::before {
+        .file-structure-view .tree-node details[open] > summary::before {
             content: '[-]'; 
         }
-        
-        /* Highlight tag name */
-        .tag-name {
-            color: var(--tag); 
-            font-weight: bold;
-        }
 
-        /* Style for attributes list container */
-        .attributes {
-            font-size: 0.9em;
-            color: var(--attribute-key); 
-            display: inline;
-        }
-        
-        .attribute-key {
-            font-style: italic;
-        }
-        
-        .attribute-value {
-            color: var(--attribute-value); 
-            font-style: normal;
-        }
-
-        /* Text nodes are simple lines */
-        .text-node {
+        .file-structure-view .text-node, 
+        .file-structure-view .comment-node {
             margin-left: 20px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            display: block;
+            max-width: 100%;
+        }
+        
+        .file-structure-view .text-node {
             color: var(--text-content); 
             font-style: italic;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            display: block;
-            max-width: 100%;
         }
-
-        /* Comment nodes */
-        .comment-node {
-            margin-left: 20px;
+        
+        .file-structure-view .comment-node {
             color: var(--comment); 
             font-style: italic;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            display: block;
-            max-width: 100%;
         }
+        
+        /*
+        * ----------------------------------------
+        * 2. VISUAL TREE VIEW (COMPACT NODE - VERTICAL)
+        * ----------------------------------------
+        */
+        .tree-structure-view .tree-container {
+            /* Enable vertical scrolling */
+            overflow-y: auto; 
+            overflow-x: hidden; /* Prevent horizontal scrolling */
+            padding: 20px 20px 50px 20px;
+            display: flex;
+            align-items: flex-start;
+            justify-content: flex-start; /* Root alignment changed from center to flex-start for tree structure */
+        }
+
+        /* The overall tree wrapper (changed to column direction) */
+        .tree {
+            display: flex;
+            flex-direction: column; /* Vertical flow */
+            align-items: flex-start; /* Align children left (default branch alignment) */
+            position: relative;
+        }
+        
+        /* Node box size is now ADAPTIVE RECTANGLE */
+        .tree-structure-view .tree-node-box {
+            /* New Styling for Chunky Retro Look */
+            min-width: 35px; 
+            height: 28px; /* Fixed height for consistent vertical spacing */
+            margin: 5px 0; /* Vertical margin only */
+            /* Use border color matching background/shadow */
+            border: 1px solid var(--shadow); 
+            border-radius: 5px; 
+            box-shadow: 3px 3px 0px var(--shadow); /* Chunky shadow for depth */
+            padding: 0 10px; /* Increased padding */
+            font-size: 11px; /* Slightly increased font size */
+            
+            text-align: center;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.1s;
+            display: flex; 
+            align-items: center;
+            justify-content: center;
+            color: var(--bg); 
+            font-weight: bold;
+            z-index: 2; /* Ensures node is above lines */
+        }
+        
+        /* Node Content (Tag/Type inside the box) */
+        .tree-structure-view .node-content {
+            line-height: 1;
+            white-space: nowrap; /* Prevent text wrapping */
+        }
+
+
+        .tree-structure-view .tree-node-box:hover {
+            /* Active look on hover */
+            box-shadow: 1px 1px 0px var(--shadow); 
+            transform: translate(2px, 2px) scale(1.05); /* Shift + slight scale */
+        }
+
+        /* ELEMENT NODE (Rectangle) */
+        .tree-structure-view .element-node-box {
+            background-color: var(--node-element-color);
+            border-color: var(--node-element-color); /* Match border color to node color */
+        }
+        
+        /* TEXT NODE (Rectangle) */
+        .tree-structure-view .text-node-box {
+            background-color: var(--node-text-color);
+            border-color: var(--node-text-color);
+            border-radius: 5px; 
+        }
+        
+        /* COMMENT NODE (Rectangle) */
+        .tree-structure-view .comment-node-box {
+            background-color: var(--node-comment-color);
+            border-color: var(--node-comment-color);
+            transform: none; 
+            border-radius: 5px;
+        }
+        .tree-structure-view .comment-node-box .node-content {
+            transform: none;
+        }
+        
+        /* Tooltip removal */
+        .tree-structure-view .tree-node-box::after {
+            content: none !important; 
+        }
+        
+
+        /* --- CONNECTOR LINES --- */
+
+        /* The branch structure */
+        .tree-branch {
+            display: flex;
+            flex-direction: row; 
+            margin-left: 20px; 
+            position: relative;
+        }
+        
+        /* 1. Main vertical line extending from the parent node downwards */
+        .tree-branch::before {
+            content: '';
+            position: absolute;
+            top: -5px; 
+            left: -10px; 
+            width: 0;
+            /* Thin, dotted line for schematic look */
+            border-left: 1px dotted var(--tree-line); 
+            height: calc(100% + 10px); 
+            z-index: 1;
+        }
+        
+        .tree-structure-view .children-container {
+            display: flex;
+            flex-direction: column; 
+            gap: 0; 
+            padding-left: 15px; 
+            justify-content: flex-start;
+        }
+
+        /* 2. Horizontal line connecting the vertical branch to each child node (L-shape) */
+        .tree-structure-view .children-container > .tree > .tree-node-box::before {
+            content: '';
+            position: absolute;
+            /* Center of the node box (28px height / 2 = 14px) + top margin (5px) = 19px */
+            top: 19px; 
+            left: -15px; /* Start at the main vertical line */
+            width: 15px; 
+            height: 0;
+            /* Thin, dotted line */
+            border-top: 1px dotted var(--tree-line);
+            z-index: 1;
+        }
+        
+        /* The root node of a child branch needs an additional connector */
+        .tree-structure-view .children-container > .tree > .tree-node-box::after {
+            content: '';
+            position: absolute;
+            top: -5px; /* Aligns with the top margin of the node */
+            left: -15px;
+            width: 0;
+            /* Thin, dotted line */
+            border-left: 1px dotted var(--tree-line);
+            height: 5px; 
+            z-index: 1;
+        }
+        
+        /* The last child node needs to stop the main vertical line */
+        .tree-structure-view .children-container > .tree:last-child .tree-branch::before {
+            /* Stops at center of last node (19px) + 5px margin */
+            height: calc(19px + 5px); 
+        }
+        
+        /* Clear the unnecessary vertical extension for the last node's branch */
+        .tree-structure-view .children-container > .tree:last-child .tree-node-box::after {
+             content: none !important;
+        }
+        
+        /* Fix the vertical line for the last node to stop precisely */
+        .tree-structure-view .children-container > .tree:last-child > .tree-node-box::before {
+            height: 0; 
+        }
+
 
         /*
         * ----------------------------------------
-        * TOGGLE SWITCH STYLING
+        * SHARED SYNTAX STYLING
+        * ----------------------------------------
+        */
+        .tag-name { color: var(--tag); font-weight: bold; }
+        .attributes { font-size: 0.9em; color: var(--attribute-key); display: inline; }
+        .attribute-key { font-style: italic; }
+        .attribute-value { color: var(--attribute-value); font-style: normal; }
+
+        /*
+        * ----------------------------------------
+        * TOGGLE SWITCH STYLING & RESPONSIVENESS
         * ----------------------------------------
         */
         .setting-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-            padding: 4px 0;
-            border-bottom: 1px dotted var(--border);
+            display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;
+            padding: 4px 0; border-bottom: 1px dotted var(--border);
         }
-
+        
         .setting-item label {
             cursor: pointer;
         }
@@ -337,40 +581,25 @@
             color: var(--bg); /* ON color (Very Dark Blue/White) */
         }
 
-        /* New button group styling */
-        .button-group {
-            display: flex;
-            gap: 10px;
-            margin-top: 15px;
-        }
-        
-        /*
-        * ----------------------------------------
-        * RESPONSIVENESS (MOBILE FIRST)
-        * ----------------------------------------
-        */
 
         @media (max-width: 768px) {
             .dashboard {
-                flex-direction: column;
-                height: auto;
-                overflow-y: auto;
+                flex-direction: column; height: auto; overflow-y: auto;
             }
-
             #input-panel {
-                width: 100%;
-                border-right: none;
-                border-bottom: 2px solid var(--border);
-                max-height: 50vh; 
+                width: 100%; border-right: none; border-bottom: 2px solid var(--border); max-height: 50vh; 
             }
-
             #tree-view {
-                width: 100%;
-                max-height: 50vh; 
+                width: 100%; max-height: 50vh; 
             }
-            
             .button-group {
                 flex-direction: column;
+            }
+            #view-toggle-group {
+                width: 100%; box-sizing: border-box;
+            }
+            #view-toggle-group button {
+                flex-grow: 1; text-align: center;
             }
         }
     </style>
@@ -378,7 +607,7 @@
 <body>
 
     <header>
-        <h1>DOM ANALYZER v1.8</h1>
+        <h1>DOM ANALYZER v2.3</h1>
     </header>
 
     <div class="dashboard">
@@ -391,7 +620,6 @@
             <button class="retro-button" onclick="processInput('paste')">RUN > PARSE HTML</button>
 
             <p style="margin-top: 20px;">UPLOAD HTML FILE:</p>
-            <!-- File input now uses specific CSS styling for a retro look -->
             <input type="file" id="file-input" accept=".html,.htm,.txt" onchange="processInput('file')">
             
             <p style="margin-top: 20px; font-size: 0.9em; color: var(--ui);">STATUS: <span id="status-message">Waiting for input... (Drag & Drop enabled)</span></p>
@@ -400,13 +628,11 @@
             <div id="settings-section">
                 <h2 style="font-size: 1.2em; border-bottom: 1px dotted var(--border); padding-bottom: 5px; margin-top: 20px;">DOM FILTER [CONFIG]</h2>
                 
-                <!-- NEW TOGGLE: COLOR MODE -->
                 <div class="setting-item">
                     <label for="toggle-theme">Color Mode (Neo-Teal / Noir)</label>
                     <input type="checkbox" id="toggle-theme">
                 </div>
                 
-                <!-- NEW TOGGLE: SCOPE -->
                 <div class="setting-item">
                     <label for="toggle-scope">Scope (HTML / BODY)</label>
                     <input type="checkbox" id="toggle-scope" checked>
@@ -428,12 +654,12 @@
                 </div>
 
                 <!-- UTILITY BUTTONS (EXPAND/COLLAPSE/EXPORT) -->
-                <div class="button-group">
-                    <button class="retro-button" onclick="toggleAllDetails(true)">EXPAND ALL</button>
-                    <button class="retro-button" onclick="toggleAllDetails(false)">COLLAPSE ALL</button>
+                <div class="button-group" id="utility-buttons">
+                    <!-- These buttons are hidden in Tree-Structure View -->
+                    <button class="retro-button" id="expand-all-btn" onclick="toggleAllDetails(true)">EXPAND ALL</button>
+                    <button class="retro-button" id="collapse-all-btn" onclick="toggleAllDetails(false)">COLLAPSE ALL</button>
                 </div>
                 <div class="button-group">
-                    <!-- Updated button to call the new function name for clarity -->
                     <button class="retro-button" onclick="downloadJson()">EXPORT & DOWNLOAD JSON</button>
                 </div>
                 <!-- END UTILITY BUTTONS -->
@@ -447,16 +673,34 @@
                   </a>
                 </div>
             </div>
-            <!-- END DOM FILTER [CONFIG] SECTION -->
+            <!-- END DOM FILTER [CONFIG] -->
 
         </section>
 
         <!-- MAIN CONTENT: DOM TREE OUTPUT -->
         <section id="tree-view">
-            <h2 style="font-size: 1.2em; border-bottom: 1px dotted var(--border); padding-bottom: 5px; margin-top: 0;">OUTPUT > DOM TREE</h2>
-            <div id="tree-container" class="tree-container">
-                <!-- Tree structure will be rendered here -->
-                <p style="color: var(--comment);">[LOG] Ready to visualize DOM structure...</p>
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dotted var(--border); padding-bottom: 5px; margin-top: 0;">
+                <h2 style="font-size: 1.2em; margin: 0;">OUTPUT > DOM TREE</h2>
+                
+                <!-- VIEW TOGGLE BUTTONS -->
+                <div id="view-toggle-group">
+                    <button id="file-view-btn" class="active" onclick="setViewMode('file')">HIERARCHICAL VIEW</button>
+                    <button id="tree-view-btn" onclick="setViewMode('tree')">VISUAL TREE VIEW</button>
+                </div>
+                <!-- END VIEW TOGGLE BUTTONS -->
+
+            </div>
+            
+            <div id="tree-container-wrapper">
+                <div id="tree-container" class="tree-container file-structure-view">
+                    <!-- Tree structure will be rendered here -->
+                    <p style="color: var(--comment);">[LOG] Ready to visualize DOM structure...</p>
+                </div>
+            </div>
+            
+            <!-- DETAIL PANEL FOR COMPACT VIEW -->
+            <div id="node-detail-panel">
+                <p style="color: var(--text-content); margin: 0;">Click a node (colored box) above to see full details (Tag, Attributes, Content).</p>
             </div>
         </section>
     </div>
@@ -464,11 +708,22 @@
     <script>
         // Global references
         const treeContainer = document.getElementById('tree-container');
+        const treeContainerWrapper = document.getElementById('tree-container-wrapper');
+        const detailPanel = document.getElementById('node-detail-panel');
         const htmlInput = document.getElementById('html-input');
         const fileInput = document.getElementById('file-input');
         const statusMessage = document.getElementById('status-message');
         const dashboard = document.querySelector('.dashboard');
         const dropZone = document.getElementById('tree-view');
+        const utilityButtons = document.getElementById('utility-buttons');
+        const fileViewBtn = document.getElementById('file-view-btn');
+        const treeViewBtn = document.getElementById('tree-view-btn');
+        
+        let currentViewMode = 'file'; // 'file' or 'tree' (Hierarchical or Visual Tree)
+        
+        // Data storage for compact tree view
+        let nodeDataMap = new Map();
+        let nodeIdCounter = 0;
 
         // Settings Toggles
         const toggleTheme = document.getElementById('toggle-theme'); 
@@ -489,7 +744,6 @@
          */
         function updateStatus(msg, isError = false) {
             statusMessage.textContent = msg;
-            // Use Deep Rose/Mid Grey for errors, Primary Brown/Dark Grey for standard status
             statusMessage.style.color = isError ? 'var(--border)' : 'var(--ui)'; 
         }
         
@@ -498,33 +752,72 @@
          */
         function toggleColorMode() {
             document.body.classList.toggle('bone-noir-theme', toggleTheme.checked);
-            // Update status bar text to reflect the current theme mode
             const mode = toggleTheme.checked ? 'Bone Noir' : 'Neo-Teal';
             updateStatus(`INFO: Switched to ${mode} theme.`, false);
         }
 
-
         /**
-         * Gets all attributes from an element and formats them as a retro string.
-         * @param {Element} element 
-         * @param {boolean} displayAttributes 
-         * @returns {string} Formatted attribute string.
+         * Switches the visualization mode and re-renders the tree if HTML is present.
+         * @param {'file' | 'tree'} mode 
          */
-        function getAttributesString(element, displayAttributes) {
-            if (!displayAttributes || element.attributes.length === 0) return '';
+        function setViewMode(mode) {
+            if (currentViewMode === mode) return; // No change needed
+
+            currentViewMode = mode;
             
-            let attrs = [];
-            for (let i = 0; i < element.attributes.length; i++) {
-                const attr = element.attributes[i];
-                // Use new attribute-value class for enhanced syntax coloring
-                attrs.push(`<span class="attribute-key">${attr.name}</span>="<span class="attribute-value">${attr.value}</span>"`);
+            // Update button active state
+            fileViewBtn.classList.toggle('active', mode === 'file');
+            treeViewBtn.classList.toggle('active', mode === 'tree');
+            
+            // Update container class for CSS styling
+            treeContainer.classList.remove('file-structure-view', 'tree-structure-view');
+            treeContainer.classList.add(mode === 'file' ? 'file-structure-view' : 'tree-structure-view');
+
+            // Toggle visibility of Expand/Collapse buttons
+            utilityButtons.style.display = mode === 'file' ? 'flex' : 'none';
+            
+            // Toggle visibility of Detail Panel
+            detailPanel.style.display = mode === 'tree' ? 'block' : 'none';
+
+            // Re-render the tree with the new view mode
+            if (lastProcessedHtml) {
+                renderTree(lastProcessedHtml);
+                updateStatus(`View mode switched to ${mode === 'file' ? 'Hierarchical' : 'Visual Tree'}.`, false);
             }
-            
-            return `<span class="attributes">[ ${attrs.join(' ')} ]</span>`;
         }
 
         /**
-         * Recursively walks the DOM tree and builds the nested HTML structure using <details>/<summary>.
+         * Gets all attributes from an element and formats them.
+         * @param {Element} element 
+         * @param {boolean} displayAttributes 
+         * @param {boolean} forDetail - True if getting structured object for detail panel.
+         * @returns {string|Object} Formatted string (file view) or Object (detail panel).
+         */
+        function getAttributes(element, displayAttributes, forDetail = false) {
+            if (!displayAttributes || element.attributes.length === 0) return forDetail ? {} : '';
+            
+            let attrs = [];
+            let detailObj = {};
+
+            for (let i = 0; i < element.attributes.length; i++) {
+                const attr = element.attributes[i];
+                if (forDetail) {
+                    detailObj[attr.name] = attr.value;
+                } else {
+                    // Use new attribute-value class for enhanced syntax coloring (for file view)
+                    attrs.push(`<span class="attribute-key">${attr.name}</span>="<span class="attribute-value">${attr.value}</span>"`);
+                }
+            }
+            
+            if (forDetail) {
+                return detailObj;
+            } else {
+                 return `<span class="attributes">[ ${attrs.join(' ')} ]</span>`;
+            }
+        }
+        
+        /**
+         * Recursively walks the DOM tree and builds the nested HTML structure based on the current view mode.
          * @param {Node} node 
          * @param {Object} settings - Visibility settings { displayAttributes, displayTextNodes, displayComments }
          * @returns {string} HTML string of the tree branch.
@@ -532,52 +825,201 @@
         function buildTree(node, settings) {
             let html = '';
 
+            // --- DATA PREPARATION (Used by Tree View) ---
+            let nodeId = null;
+            let nodeType = '';
+            let nodeTitle = '';
+            let nodeClass = '';
+
             // 1. Handle Element Nodes (e.g., <div>, <p>, <body>)
             if (node.nodeType === 1 /* Node.ELEMENT_NODE */) {
                 const tagName = node.tagName.toLowerCase();
-                const attributes = getAttributesString(node, settings.displayAttributes);
+                const attributesHtml = getAttributes(node, settings.displayAttributes);
                 
-                // Start of the collapsible node
-                html += '<div class="tree-node">';
-                html += '<details open>'; // Open by default for better initial view
-                html += `<summary>&lt;<span class="tag-name">${tagName}</span>${attributes}&gt;</summary>`;
-                
-                // Process children
-                if (node.childNodes.length > 0) {
-                    node.childNodes.forEach(child => {
-                        // Pass settings recursively
-                        html += buildTree(child, settings);
+                if (currentViewMode === 'file') {
+                    // HIERARCHICAL VIEW: Vertical Collapsible
+                    html += '<div class="tree-node">';
+                    html += '<details open>'; 
+                    html += `<summary>&lt;<span class="tag-name">${tagName}</span>${attributesHtml}&gt;</summary>`;
+                    
+                    if (node.childNodes.length > 0) {
+                        node.childNodes.forEach(child => {
+                            html += buildTree(child, settings);
+                        });
+                    }
+                    
+                    html += '</details>';
+                    html += '</div>';
+
+                } else if (currentViewMode === 'tree') {
+                    // VISUAL TREE VIEW: Compact Vertical Flowchart
+                    
+                    // --- Prepare Data for Map Storage ---
+                    nodeId = 'node-' + nodeIdCounter++;
+                    nodeType = 'ELEMENT';
+                    // Display the full tag name
+                    nodeTitle = tagName.toUpperCase(); 
+                    nodeClass = 'element-node-box';
+                    // Store full node data for detail panel
+                    nodeDataMap.set(nodeId, {
+                        type: nodeType,
+                        tag: tagName,
+                        attributes: getAttributes(node, settings.displayAttributes, true),
+                        content: node.textContent.trim(),
+                        rawNode: node
                     });
+                    
+                    let childrenHtml = '';
+                    let childrenCount = 0;
+                    
+                    // Process children first to determine if it has visible children
+                    node.childNodes.forEach(child => {
+                        const childHtml = buildTree(child, settings);
+                        if (childHtml) {
+                            childrenHtml += childHtml;
+                            childrenCount++;
+                        }
+                    });
+
+                    // Start of the tree node wrapper (for positioning)
+                    html += `<div class="tree">`;
+                    
+                    // Compact Node Box (Clickable)
+                    html += `<div class="tree-node-box ${nodeClass}" id="${nodeId}" onclick="showNodeDetails('${nodeId}')">
+                                <span class="node-content">${nodeTitle}</span>
+                            </div>`;
+                    
+                    // Children Branch
+                    if (childrenCount > 0) {
+                        const branchClass = childrenCount > 1 ? 'tree-branch has-multiple-children' : 'tree-branch';
+                        html += `<div class="${branchClass}">`;
+                        html += `<div class="children-container">`;
+                        html += childrenHtml;
+                        html += `</div>`;
+                        html += `</div>`;
+                    }
+                    
+                    // End of the tree node wrapper
+                    html += `</div>`;
                 }
                 
-                // End of the collapsible node
-                html += '</details>';
-                html += '</div>';
 
             } 
             // 2. Handle Text Nodes (excluding empty whitespace)
             else if (node.nodeType === 3 /* Node.TEXT_NODE */) {
                 const textContent = node.nodeValue.trim();
                 
-                // Skip if setting is off OR content is just whitespace
                 if (!settings.displayTextNodes || textContent.length === 0) return ''; 
                 
-                // Truncate long text nodes for display clarity
                 const displayContent = textContent.length > MAX_TEXT_LENGTH
                     ? textContent.substring(0, MAX_TEXT_LENGTH) + '...'
                     : textContent;
-
-                html += `<span class="text-node">#text: "${displayContent}"</span>`;
+                
+                if (currentViewMode === 'file') {
+                    html += `<span class="text-node">#text: "${displayContent}"</span>`;
+                } else {
+                    // VISUAL TREE VIEW: Compact Node
+                    nodeId = 'node-' + nodeIdCounter++;
+                    nodeType = 'TEXT';
+                    nodeTitle = `TEXT`; 
+                    nodeClass = 'text-node-box';
+                    
+                    nodeDataMap.set(nodeId, {
+                        type: nodeType,
+                        content: textContent,
+                        rawNode: node
+                    });
+                    
+                    html += `<div class="tree">
+                                <div class="tree-node-box ${nodeClass}" id="${nodeId}" onclick="showNodeDetails('${nodeId}')">
+                                    <span class="node-content">${nodeTitle}</span>
+                                </div>
+                            </div>`;
+                }
             }
             // 3. Handle Comment Nodes
             else if (node.nodeType === 8 /* Node.COMMENT_NODE */) {
                 if (!settings.displayComments) return ''; // Skip if setting is off
 
                 const commentContent = node.nodeValue.trim();
-                html += `<span class="comment-node">&lt;!-- Comment: ${commentContent} --&gt;</span>`;
+                
+                if (currentViewMode === 'file') {
+                    html += `<span class="comment-node">&lt;!-- Comment: ${commentContent} --&gt;</span>`;
+                } else {
+                    // VISUAL TREE VIEW: Compact Node
+                    nodeId = 'node-' + nodeIdCounter++;
+                    nodeType = 'COMMENT';
+                    nodeTitle = `COMMENT`; 
+                    nodeClass = 'comment-node-box';
+                    
+                    nodeDataMap.set(nodeId, {
+                        type: nodeType,
+                        content: commentContent,
+                        rawNode: node
+                    });
+                    
+                    html += `<div class="tree">
+                                <div class="tree-node-box ${nodeClass}" id="${nodeId}" onclick="showNodeDetails('${nodeId}')">
+                                    <span class="node-content">${nodeTitle}</span>
+                                </div>
+                            </div>`;
+                }
             }
             
             return html;
+        }
+        
+        /**
+         * Displays the detailed information for a compact node in the detail panel.
+         * @param {string} nodeId - The unique ID of the clicked node.
+         */
+        window.showNodeDetails = function(nodeId) {
+            const data = nodeDataMap.get(nodeId);
+            if (!data) {
+                detailPanel.innerHTML = '<p style="color: var(--border);">[ERROR] Node details not found.</p>';
+                return;
+            }
+            
+            let contentHtml = '';
+            
+            if (data.type === 'ELEMENT') {
+                contentHtml += `<h4>&lt;${data.tag.toUpperCase()}&gt; (ELEMENT NODE)</h4>`;
+                
+                // Attributes
+                const attrKeys = Object.keys(data.attributes);
+                if (attrKeys.length > 0) {
+                    contentHtml += '<p><span class="detail-attribute">ATTRIBUTES:</span></p><pre>';
+                    attrKeys.forEach(key => {
+                        contentHtml += `<span class="detail-attribute">${key}</span>: <span class="detail-value">"${data.attributes[key]}"</span>\n`;
+                    });
+                    contentHtml += '</pre>';
+                } else {
+                    contentHtml += '<p><span class="detail-attribute">ATTRIBUTES:</span> <span class="detail-value">None</span></p>';
+                }
+                
+                // Inner Content
+                if (data.content) {
+                    contentHtml += `<p><span class="detail-attribute">TEXT CONTENT (Trimmed):</span></p><pre>"${data.content}"</pre>`;
+                } else {
+                    contentHtml += '<p><span class="detail-attribute">TEXT CONTENT:</span> <span class="detail-value">Empty</span></p>';
+                }
+                
+                // Inner HTML (for full context)
+                if (data.rawNode.innerHTML) {
+                    let innerHtml = data.rawNode.innerHTML.trim();
+                    const displayHtml = innerHtml.length > 300 ? innerHtml.substring(0, 300) + '...' : innerHtml;
+                    contentHtml += `<p><span class="detail-attribute">INNER HTML (Snippet):</span></p><pre style="color: var(--ui);">${displayHtml}</pre>`;
+                }
+                
+            } else if (data.type === 'TEXT') {
+                contentHtml += `<h4>#TEXT NODE</h4>`;
+                contentHtml += `<p><span class="detail-attribute">FULL CONTENT:</span></p><pre>"${data.content}"</pre>`;
+            } else if (data.type === 'COMMENT') {
+                contentHtml += `<h4>&lt;!-- COMMENT NODE --&gt;</h4>`;
+                contentHtml += `<p><span class="detail-attribute">COMMENT CONTENT:</span></p><pre>"${data.content}"</pre>`;
+            }
+            
+            detailPanel.innerHTML = contentHtml;
         }
 
         /**
@@ -594,6 +1036,14 @@
 
                 updateStatus('Parsing and generating DOM tree...');
 
+                // RESET GLOBAL DATA MAP FOR NEW PARSE
+                nodeDataMap.clear();
+                nodeIdCounter = 0;
+                
+                // Clear detail panel
+                detailPanel.innerHTML = '<p style="color: var(--text-content); margin: 0;">Click a node (colored box) above to see full details (Tag, Attributes, Content).</p>';
+
+
                 // Store the raw HTML for re-rendering on setting changes
                 lastProcessedHtml = rawHtml; 
 
@@ -608,8 +1058,6 @@
                 const doc = parser.parseFromString(rawHtml, 'text/html');
 
                 // Determine the starting node based on the toggleScope state
-                // true (checked) means HTML element (full document)
-                // false (unchecked) means BODY element (page content only)
                 const startNode = toggleScope.checked ? doc.documentElement : doc.body;
 
                 if (!startNode) {
@@ -620,8 +1068,15 @@
 
                 // Start building the tree from the selected element
                 const treeHtml = buildTree(startNode, settings);
+                
+                // Wrap the tree HTML for the tree view to ensure proper centering/scrolling
+                if (currentViewMode === 'tree') {
+                    // Force the root element to be centered in the container, which enables horizontal scrolling if needed
+                    treeContainer.innerHTML = `<div style="display: flex; justify-content: flex-start; width: max-content;">${treeHtml}</div>`;
+                } else {
+                    treeContainer.innerHTML = treeHtml;
+                }
 
-                treeContainer.innerHTML = treeHtml;
                 updateStatus('DOM visualization complete. Data loaded.', false);
 
             } catch (error) {
@@ -637,21 +1092,20 @@
         function setupSettingsListeners() {
             [toggleAttribute, toggleText, toggleComment, toggleScope, toggleTheme].forEach(toggle => {
                 toggle.addEventListener('change', () => {
-                    // Special handling for the theme toggle, which calls its own function
                     if (toggle.id === 'toggle-theme') {
                         toggleColorMode();
                         return;
                     }
 
-                    // Normal handling for other toggles (requires re-render)
                     if (lastProcessedHtml) {
-                        // Re-render the tree with the new settings using the last successful input
                         renderTree(lastProcessedHtml);
                     } else {
                         updateStatus('INFO: Please enter or upload HTML first.', false);
                     }
                 });
             });
+            
+            window.setViewMode = setViewMode;
         }
         
         /**
@@ -659,6 +1113,11 @@
          * @param {boolean} shouldOpen - true to expand, false to collapse.
          */
         function toggleAllDetails(shouldOpen) {
+            if (currentViewMode !== 'file') {
+                 updateStatus('INFO: Expand/Collapse is only available in Hierarchical View.', false);
+                 return;
+            }
+            
             const detailsElements = treeContainer.querySelectorAll('details');
             if (detailsElements.length === 0) {
                  updateStatus('INFO: No DOM tree to expand/collapse.', false);
@@ -672,26 +1131,14 @@
             updateStatus(shouldOpen ? 'All nodes expanded.' : 'All nodes collapsed.', false);
         }
 
-        // --- JSON Export Implementation ---
-
-        /**
-         * Recursively converts a DOM node into a structured JSON object.
-         * This function respects the current filtering settings.
-         * @param {Node} node The DOM node to process.
-         * @param {Object} settings Current filtering settings.
-         * @returns {Object|null} The JSON structure or null if filtered out.
-         */
+        // --- JSON Export Implementation (Unchanged) ---
         function domToJson(node, settings) {
             let obj = {};
-
-            // 1. Element Node
-            if (node.nodeType === 1 /* Node.ELEMENT_NODE */) {
+            if (node.nodeType === 1) {
                 const tagName = node.tagName.toLowerCase();
-                
                 obj.nodeType = 'ELEMENT';
                 obj.tagName = tagName;
 
-                // Add Attributes
                 if (settings.displayAttributes && node.attributes.length > 0) {
                     obj.attributes = {};
                     for (let i = 0; i < node.attributes.length; i++) {
@@ -699,8 +1146,6 @@
                         obj.attributes[attr.name] = attr.value;
                     }
                 }
-
-                // Process Children
                 let children = [];
                 node.childNodes.forEach(child => {
                     const childObj = domToJson(child, settings);
@@ -712,70 +1157,44 @@
                 if (children.length > 0) {
                     obj.children = children;
                 }
-                
                 return obj;
-
-            } 
-            // 2. Text Node
-            else if (node.nodeType === 3 /* Node.TEXT_NODE */) {
+            } else if (node.nodeType === 3) {
                 const textContent = node.nodeValue.trim();
-                
                 if (!settings.displayTextNodes || textContent.length === 0) return null; 
-                
                 obj.nodeType = 'TEXT';
                 obj.content = textContent;
                 return obj;
-            }
-            // 3. Comment Node
-            else if (node.nodeType === 8 /* Node.COMMENT_NODE */) {
+            } else if (node.nodeType === 8) {
                 if (!settings.displayComments) return null; 
-                
                 const commentContent = node.nodeValue.trim();
                 obj.nodeType = 'COMMENT';
                 obj.content = commentContent;
                 return obj;
             }
-            
-            // 4. Other nodes (Document, Doctype, etc.) - skip
             return null;
         }
 
-        /**
-         * New function to generate the JSON and trigger a local file download.
-         */
         function downloadJson() {
             if (!lastProcessedHtml) {
                 updateStatus('ERROR: No HTML has been parsed yet to export.', true);
                 return;
             }
-
             updateStatus('Generating JSON structure for download...');
-            
-            // Get current settings (same as renderTree)
             const settings = {
                 displayAttributes: toggleAttribute.checked,
                 displayTextNodes: toggleText.checked,
                 displayComments: toggleComment.checked,
             };
-            
-            // Re-parse the last successful HTML
             const doc = parser.parseFromString(lastProcessedHtml, 'text/html');
-            
-            // Determine the starting node based on the toggleScope state
             const startNode = toggleScope.checked ? doc.documentElement : doc.body;
 
             if (!startNode) {
                 updateStatus('ERROR: Starting element (HTML/BODY) not found.', true);
                 return;
             }
-
-            // Convert DOM to JSON object
             const jsonObject = domToJson(startNode, settings);
-            
-            // Format the JSON string nicely (indentation of 2 spaces)
             const jsonString = JSON.stringify(jsonObject, null, 2); 
 
-            // --- Download Logic ---
             const filename = 'dom_analysis_' + new Date().toISOString().slice(0, 10) + '.json';
             const blob = new Blob([jsonString], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
@@ -784,51 +1203,38 @@
             a.href = url;
             a.download = filename;
             
-            // Append link to body, trigger click, and remove it
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             
-            // Clean up the URL object
             URL.revokeObjectURL(url);
-            // --- End Download Logic ---
-
             updateStatus(`JSON file '${filename}' downloaded successfully.`, false);
         }
 
-        // The old exportToJson function is now removed.
-        // It's replaced by downloadJson, and the button now calls downloadJson.
 
-        // --- Drag and Drop Implementation ---
-
+        // --- Drag and Drop Implementation (Unchanged) ---
         function preventDefaults(e) {
-            e.preventDefault();
-            e.stopPropagation();
+            e.preventDefault(); e.stopPropagation();
         }
 
         function setupDragAndDrop() {
-            // Prevent default behavior (which is usually opening the file)
             ['dragenter', 'dragleave', 'dragover', 'drop'].forEach(eventName => {
                 dashboard.addEventListener(eventName, preventDefaults, false);
             });
             
-            // Highlight drop area when file is dragged over
             ['dragenter', 'dragover'].forEach(eventName => {
                 dashboard.addEventListener(eventName, () => {
                     dropZone.classList.add('drag-active');
                 }, false);
             });
 
-            // Unhighlight drop area when file leaves/drops
             ['dragleave', 'drop'].forEach(eventName => {
                 dashboard.addEventListener(eventName, (e) => {
-                    // Only remove drag-active if the mouse is truly outside the drop zone
                     if (eventName === 'dragleave' && e.target !== dropZone) return;
                     dropZone.classList.remove('drag-active');
                 }, false);
             });
 
-            // Handle dropped files
             dashboard.addEventListener('drop', handleDrop, false);
 
             function handleDrop(e) {
@@ -837,15 +1243,14 @@
 
                 if (files.length) {
                     const file = files[0];
-                    
                     if (file.type.match('text/html') || file.name.match(/\.(html|htm|txt)$/i)) {
                         updateStatus(`Loading file via drag/drop: ${file.name}...`);
                         const reader = new FileReader();
                         
                         reader.onload = (event) => {
                             const htmlCode = event.target.result;
-                            htmlInput.value = htmlCode; // Update textarea for persistence
-                            fileInput.value = ''; // Clear file input
+                            htmlInput.value = htmlCode; 
+                            fileInput.value = ''; 
                             renderTree(htmlCode);
                         };
 
@@ -866,16 +1271,18 @@
         
         // Expose functions to global scope
         window.toggleAllDetails = toggleAllDetails;
-        // Expose the new download function
         window.downloadJson = downloadJson; 
         window.renderTree = renderTree; 
+        window.processInput = processInput;
 
         // Initialize listeners once the window loads
         window.onload = function() {
             setupSettingsListeners(); 
             setupDragAndDrop(); 
+            // Ensure initial view is set correctly
+            setViewMode('file');
         };
-
+        
         /**
          * Handles either paste input or file upload (used by buttons).
          * @param {'paste' | 'file'} type 
